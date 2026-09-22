@@ -1,1 +1,42 @@
 # PS2000-Webui
+
+A small web GUI for controlling a PS2000B-series programmable power supply over its serial (RS-232) protocol.
+
+## Features
+
+- Reads device info on startup (make, model, serial number, article number, nominal voltage)
+- View current output voltage
+- Set output voltage
+- Toggle power output on/off
+- Toggle remote control mode on/off
+- Simple static web UI served alongside the API
+
+## Dependencies
+
+- [.NET 10 SDK](https://dotnet.microsoft.com/)
+- `System.IO.Ports` (restored automatically via NuGet)
+- A PS2000B-series power supply connected over a serial port
+
+## Build
+
+```bash
+dotnet build
+```
+
+## Run
+
+```bash
+dotnet run
+```
+
+By default the app connects to `COM3`. Set the serial port via `appsettings.json` (or `appsettings.Development.json`) using the `PS2000:ComPort` key, e.g.:
+
+```json
+{
+  "PS2000": {
+    "ComPort": "/dev/ttyACM0"
+  }
+}
+```
+
+Once running, open the app in a browser at the URL shown in the console output.
