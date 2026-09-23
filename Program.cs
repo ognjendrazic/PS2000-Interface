@@ -4,12 +4,12 @@ using System.Text;
 var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
 
-var deviceMake = "";
-var deviceModel = "";
-var serialNumber = "";
-var articleNumber = "";
-var maxVoltage = "";
-var currentVoltage = "";
+var deviceMake = "N/A";
+var deviceModel = "N/A";
+var serialNumber = "N/A";
+var articleNumber = "N/A";
+var maxVoltage = "N/A";
+var currentVoltage = "N/A";
 var nominalVoltage = 0f;
 
 try
