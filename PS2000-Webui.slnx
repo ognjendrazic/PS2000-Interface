@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="PS2000-GUI/PS2000-GUI.csproj" />
+  <Project Path="PS2000.Driver/PS2000.Driver.csproj" />
+</Solution>
