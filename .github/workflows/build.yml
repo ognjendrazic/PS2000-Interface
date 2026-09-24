@@ -7,7 +7,8 @@ on:
     branches: [main]
 
 jobs:
-  build:
+  driver:
+    name: Build Driver
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,7 +19,41 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Restore
-        run: dotnet restore
+        run: dotnet restore PS2000.Driver/PS2000.Driver.csproj
 
       - name: Build
-        run: dotnet build --no-restore --configuration Release
+        run: dotnet build PS2000.Driver/PS2000.Driver.csproj --no-restore --configuration Release
+
+  gui:
+    name: Build GUI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore PS2000-GUI/PS2000-GUI.csproj
+
+      - name: Build
+        run: dotnet build PS2000-GUI/PS2000-GUI.csproj --no-restore --configuration Release
+
+  solution:
+    name: Build Solution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore PS2000-Webui.slnx
+
+      - name: Build
+        run: dotnet build PS2000-Webui.slnx --no-restore --configuration Release
