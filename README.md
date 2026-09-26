@@ -1,4 +1,4 @@
-# PS2000-Webui
+# PS2000 Interface
 
 A small web GUI for controlling a PS2000B-series programmable power supply over its serial (RS-232) protocol.
 
