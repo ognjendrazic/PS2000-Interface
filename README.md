@@ -13,7 +13,9 @@ A small web GUI for controlling a PS2000B-series programmable power supply over 
 
 ## Project structure
 
-The solution is split into layers. The front end knows nothing about serial ports; it talks to the power supply only through the `IPowerSupply` interface.
+The solution has three logical layers: the web application, the driver library, and the physical PSU. The web application reads the port configuration and creates an `IPowerSupply` through `PowerSupplyFactory.Create(comPort)`. Startup reads and API endpoints use that interface; HTTP responses and display formatting remain in the web application.
+
+The driver owns serial communication, protocol frames, checksums, response decoding, and voltage scaling. It opens and disposes a port for each public operation. Voltage operations read the nominal voltage internally, so they do not require a prior call to `GetDeviceInfo()`. Voltage settings must be finite and between zero and the device's nominal voltage.
 
 ```
 PS2000-Webui.slnx
@@ -43,18 +45,40 @@ dotnet build
 
 ## Run
 
-```bash
-dotnet run --project PS2000-GUI
-```
-
-By default the app connects to `COM3`. Set the serial port via `PS2000-GUI/appsettings.json` (or `PS2000-GUI/appsettings.Development.json`) using the `PS2000:ComPort` key, e.g.:
+Connect the PSU and set `PS2000:ComPort` in `PS2000-GUI/appsettings.json` (or `PS2000-GUI/appsettings.Development.json` when running in Development). The checked-in setting is `/dev/ttyACM0` for Linux. On Windows, use the actual COM port assigned to the PSU, for example:
 
 ```json
 {
   "PS2000": {
-    "ComPort": "/dev/ttyACM0"
+    "ComPort": "COM3"
   }
 }
 ```
 
-Once running, open the app in a browser at the URL shown in the console output.
+`COM3` is only an example, not a fallback. Missing or blank configuration stops startup with a configuration error. The app also stops if it cannot open the port or read device information and voltage; it does not start with placeholder device values.
+
+From the solution directory, run:
+
+```bash
+dotnet run --project PS2000-GUI
+```
+
+Once running, open the app in a browser at the URL shown in the console output. Enable remote control before setting voltage or changing output. Use **Get** to refresh the voltage reading; the dashboard does not poll automatically.
+
+## Verification status
+
+Software checks completed on October 5, 2026:
+
+- Release solution build passed with zero warnings and errors.
+- Missing port configuration stopped startup with a clear configuration error.
+- A nonexistent port stopped startup and identified the unavailable port.
+- Serial and protocol implementation details reside in the driver library; the GUI has no direct `System.IO.Ports` package reference.
+
+Physical testing was deferred because the PSU was not connected. The following checks remain pending:
+
+- Confirm device identity and nominal voltage against the connected PSU.
+- Compare voltage readback with the PSU display.
+- In a suitable bench setup, enable remote control, set a suitable test voltage, and verify the result.
+- Verify power output on/off and remote control on/off against the PSU's actual state.
+
+The build and startup checks do not establish that hardware operations work correctly.

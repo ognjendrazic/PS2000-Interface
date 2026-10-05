@@ -8,10 +8,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.IO.Ports" Version="10.0.12" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="..\PS2000.Driver\PS2000.Driver.csproj" />
   </ItemGroup>
 
