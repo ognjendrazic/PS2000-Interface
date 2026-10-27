@@ -89,8 +89,12 @@
   document.getElementById('setBtn').addEventListener('click', () => {
     const volts = document.getElementById('setVoltage').value;
     fetch(`/api/voltage/${volts}`, { method: 'POST' })
-      .then(r => r.json())
-      .then(d => {
+      .then(async r => {
+        const d = await r.json();
+        if (!r.ok) {
+          alert(d.error);
+          return;
+        }
         document.getElementById('currentVoltage').textContent = `${d.volts.toFixed(2)} V`;
       });
   });

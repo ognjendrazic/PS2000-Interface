@@ -1,12 +1,22 @@
+using System.IO.Ports;
 using PS2000.Driver;
 
 var builder = WebApplication.CreateBuilder(args);
-var comPort = builder.Configuration["PS2000:ComPort"];
-if (string.IsNullOrWhiteSpace(comPort))
-    throw new InvalidOperationException("Configure PS2000:ComPort before starting the application.");
 
-IPowerSupply powerSupply = PowerSupplyFactory.Create(comPort);
+// Windows assigns a varying COMx port, Linux always uses /dev/ttyACM0.
+var comPort = SerialPort.GetPortNames().FirstOrDefault(port => port.StartsWith("COM") || port == "/dev/ttyACM0");
+
+// Create the appropriate power supply instance based on the availability of a COM port.
+IPowerSupply powerSupply;
+if (comPort is not null)
+    powerSupply = PowerSupplyFactory.Create(PowerSupplyType.Real, comPort);
+else
+    powerSupply = PowerSupplyFactory.Create(PowerSupplyType.Dummy);
+
 var app = builder.Build();
+
+if (comPort is null)
+    app.Logger.LogWarning("No PS2000 found, using the dummy power supply.");
 
 var deviceInfo = powerSupply.GetDeviceInfo();
 var maxVoltage = $"{deviceInfo.NominalVoltage:F2} V";
@@ -44,7 +54,15 @@ app.MapGet("/api/voltage", () =>
 
 app.MapPost("/api/voltage/{volts:double}", (double volts) =>
 {
-    powerSupply.SetVoltage(volts);
+    try
+    {
+        powerSupply.SetVoltage(volts);
+    }
+    catch (ArgumentOutOfRangeException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+
     return Results.Ok(new { volts = powerSupply.GetVoltage() });
 });
 
