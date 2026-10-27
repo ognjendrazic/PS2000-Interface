@@ -13,29 +13,24 @@ A small web GUI for controlling a PS2000B-series programmable power supply over 
 
 ## Project structure
 
-The solution has three logical layers: the web application, the driver library, and the physical PSU. The web application reads the port configuration and creates an `IPowerSupply` through `PowerSupplyFactory.Create(comPort)`. Startup reads and API endpoints use that interface; HTTP responses and display formatting remain in the web application.
-
-The driver owns serial communication, protocol frames, checksums, response decoding, and voltage scaling. It opens and disposes a port for each public operation. Voltage operations read the nominal voltage internally, so they do not require a prior call to `GetDeviceInfo()`. Voltage settings must be finite and between zero and the device's nominal voltage.
+The web application picks a power supply through `PowerSupplyFactory.Create` and only talks to the `IPowerSupply` interface. The driver owns the serial protocol and opens a port for each operation. Voltage must be finite and between zero and the device's nominal voltage.
 
 ```
 PS2000-Webui.slnx
 ├── PS2000-GUI/          Front end: ASP.NET minimal API + static web UI (wwwroot/)
 └── PS2000.Driver/       Class library: PS2000 serial protocol
     ├── IPowerSupply.cs         Public interface used by the front end
-    ├── PowerSupplyFactory.cs   Static factory: PowerSupplyFactory.Create(comPort)
+    ├── PowerSupplyFactory.cs   Creates the real or dummy power supply
     ├── DeviceInfo.cs           Device identity and nominal voltage
-    └── PS2000PowerSupply.cs    Internal implementation of IPowerSupply
-```
-
-```
-PS2000-GUI  →  PS2000.Driver  →  PS2000B (serial)
+    ├── PS2000PowerSupply.cs    Internal implementation for the real device
+    └── PowerSupplyDummy.cs     Internal in-memory dummy used when no device is found
 ```
 
 ## Dependencies
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/)
 - `System.IO.Ports`, used by `PS2000.Driver` (restored automatically via NuGet)
-- A PS2000B-series power supply connected over a serial port
+- A PS2000B-series power supply connected over a serial port (optional, a dummy is used without one)
 
 ## Build
 
@@ -45,31 +40,10 @@ dotnet build
 
 ## Run
 
-Connect the PSU and set `PS2000:ComPort` in `PS2000-GUI/appsettings.json` (or `PS2000-GUI/appsettings.Development.json` when running in Development). The checked-in setting is `/dev/ttyACM0` for Linux. On Windows, use the actual COM port assigned to the PSU, for example:
-
-```json
-{
-  "PS2000": {
-    "ComPort": "COM3"
-  }
-}
-```
-
-`COM3` is only an example, not a fallback. Missing or blank configuration stops startup with a configuration error. The app also stops if it cannot open the port or read device information and voltage; it does not start with placeholder device values.
-
-From the solution directory, run:
-
 ```bash
 dotnet run --project PS2000-GUI
 ```
 
-Once running, open the app in a browser at the URL shown in the console output. Enable remote control before setting voltage or changing output. Use **Get** to refresh the voltage reading; the dashboard does not poll automatically.
+On startup the app looks for the power supply on `/dev/ttyACM0` (Linux) or the first `COM` port (Windows). If none is found, it logs a warning and uses the dummy power supply, which keeps the voltage in memory so the UI can be used without hardware.
 
-## Verification status
-
-Software checks completed on October 5, 2026:
-
-- Release solution build passed with zero warnings and errors.
-- Missing port configuration stopped startup with a clear configuration error.
-- A nonexistent port stopped startup and identified the unavailable port.
-- Serial and protocol implementation details reside in the driver library; the GUI has no direct `System.IO.Ports` package reference.
+Open the app in a browser at the URL shown in the console output. Enable remote control before setting voltage or changing output. Use **Get** to refresh the voltage reading; the page does not poll automatically.
