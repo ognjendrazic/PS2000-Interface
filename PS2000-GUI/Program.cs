@@ -1,69 +1,67 @@
-using System.IO.Ports;
-using PS2000.Driver;
+using PS2000_GUI;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Windows assigns a varying COMx port, Linux always uses /dev/ttyACM0.
-var comPort = SerialPort.GetPortNames().FirstOrDefault(port => port.StartsWith("COM") || port == "/dev/ttyACM0");
-
-// Create the appropriate power supply instance based on the availability of a COM port.
-IPowerSupply powerSupply;
-if (comPort is not null)
-    powerSupply = PowerSupplyFactory.Create(PowerSupplyType.Real, comPort);
-else
-    powerSupply = PowerSupplyFactory.Create(PowerSupplyType.Dummy);
+// One MQTT client for the whole app, also started as a background service.
+builder.Services.AddSingleton<PsuMqtt>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<PsuMqtt>());
 
 var app = builder.Build();
-
-if (comPort is null)
-    app.Logger.LogWarning("No PS2000 found, using the dummy power supply.");
-
-var deviceInfo = powerSupply.GetDeviceInfo();
-var maxVoltage = $"{deviceInfo.NominalVoltage:F2} V";
-var currentVoltage = $"{powerSupply.GetVoltage():F2} V";
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
-app.MapGet("/api/device", () => new
-{
-    make = deviceInfo.Make,
-    model = deviceInfo.Model,
-    serial = deviceInfo.SerialNumber,
-    article = deviceInfo.ArticleNumber,
-    maxVoltage,
-    currentVoltage
-});
+var psu = app.Services.GetRequiredService<PsuMqtt>();
 
-app.MapPost("/api/output/{on:bool}", (bool on) =>
+// Commands only reach the PSU when it is online, so refuse them otherwise instead of losing them silently.
+async Task<IResult> Send(string command, string payload)
 {
-    powerSupply.SetPowerOutput(on);
-    return Results.Ok();
-});
+    if (!psu.Online)
+        return Results.Json(new { error = "The PSU is offline." }, statusCode: 503);
 
-app.MapPost("/api/remote/{on:bool}", (bool on) =>
+    await psu.SendCommand(command, payload);
+    return Results.Accepted();
+}
+
+app.MapGet("/api/status", () => new { online = psu.Online, error = psu.LastError });
+
+app.MapGet("/api/device", () =>
 {
-    powerSupply.SetRemoteControl(on);
-    return Results.Ok();
+    if (psu.DeviceInfo is not { } info)
+        return Results.StatusCode(503);
+
+    return Results.Ok(new
+    {
+        make = info.Make,
+        model = info.Model,
+        serial = info.SerialNumber,
+        article = info.ArticleNumber,
+        maxVoltage = $"{info.NominalVoltage:F2} V",
+        currentVoltage = psu.Voltage is { } volts ? $"{volts:F2} V" : null
+    });
 });
 
 app.MapGet("/api/voltage", () =>
 {
-    return Results.Ok(new { volts = powerSupply.GetVoltage() });
+    if (psu.Voltage is not { } volts)
+        return Results.StatusCode(503);
+
+    return Results.Ok(new { volts });
 });
+
+app.MapPost("/api/output/{on:bool}", (bool on) => Send("output", on ? "true" : "false"));
+
+app.MapPost("/api/remote/{on:bool}", (bool on) => Send("remote", on ? "true" : "false"));
 
 app.MapPost("/api/voltage/{volts:double}", (double volts) =>
 {
-    try
-    {
-        powerSupply.SetVoltage(volts);
-    }
-    catch (ArgumentOutOfRangeException ex)
-    {
-        return Results.BadRequest(new { error = ex.Message });
-    }
+    if (psu.DeviceInfo is not { } info)
+        return Task.FromResult(Results.Json(new { error = "The PSU is offline." }, statusCode: 503));
 
-    return Results.Ok(new { volts = powerSupply.GetVoltage() });
+    if (!double.IsFinite(volts) || volts < 0 || volts > info.NominalVoltage)
+        return Task.FromResult(Results.BadRequest(new { error = $"Voltage must be between 0 and {info.NominalVoltage:F2} V." }));
+
+    return Send("voltage", volts.ToString(System.Globalization.CultureInfo.InvariantCulture));
 });
 
 app.Run();

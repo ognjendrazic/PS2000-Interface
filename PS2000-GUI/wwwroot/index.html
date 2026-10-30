@@ -16,6 +16,8 @@
     </div>
   </header>
 
+  <div id="banner" class="banner" hidden></div>
+
   <section class="card">
     <h2>Device</h2>
     <dl>
@@ -53,28 +55,47 @@
   </section>
 </main>
 <script>
-  fetch('/api/device')
-    .then(r => r.json())
-    .then(d => {
-      document.getElementById('make').textContent = d.make;
-      document.getElementById('model').textContent = d.model;
-      document.getElementById('serial').textContent = d.serial;
-      document.getElementById('article').textContent = d.article;
-      document.getElementById('maxVoltage').textContent = d.maxVoltage;
-      document.getElementById('currentVoltage').textContent = d.currentVoltage;
-    })
-    .catch(() => {
-      for (const id of ['make', 'model', 'serial', 'article', 'maxVoltage', 'currentVoltage']) {
-        document.getElementById(id).textContent = 'Error';
-      }
-    });
+  const deviceFields = ['make', 'model', 'serial', 'article', 'maxVoltage', 'currentVoltage'];
 
-  document.getElementById('output').addEventListener('change', e => {
-    fetch(`/api/output/${e.target.checked}`, { method: 'POST' });
+  // POSTs a command. The PSU applies it asynchronously, so use Get to read the new value.
+  async function post(url) {
+    const r = await fetch(url, { method: 'POST' });
+    if (!r.ok) alert((await r.json()).error);
+    return r.ok;
+  }
+
+  function loadDevice() {
+    fetch('/api/device')
+      .then(r => r.json())
+      .then(d => {
+        for (const id of deviceFields) {
+          document.getElementById(id).textContent = d[id] ?? '—';
+        }
+      });
+  }
+
+  // Every 2 seconds: show whether the PSU is online and the last error it reported.
+  let wasOnline = false;
+  function updateStatus() {
+    fetch('/api/status')
+      .then(r => r.json())
+      .then(s => {
+        const banner = document.getElementById('banner');
+        banner.hidden = s.online && !s.error;
+        banner.textContent = s.online ? `PSU error: ${s.error}` : 'PSU client is offline';
+        if (s.online && !wasOnline) loadDevice();
+        wasOnline = s.online;
+      });
+  }
+  updateStatus();
+  setInterval(updateStatus, 2000);
+
+  document.getElementById('output').addEventListener('change', async e => {
+    if (!await post(`/api/output/${e.target.checked}`)) e.target.checked = !e.target.checked;
   });
 
-  document.getElementById('remote').addEventListener('change', e => {
-    fetch(`/api/remote/${e.target.checked}`, { method: 'POST' });
+  document.getElementById('remote').addEventListener('change', async e => {
+    if (!await post(`/api/remote/${e.target.checked}`)) e.target.checked = !e.target.checked;
   });
 
   document.getElementById('getBtn').addEventListener('click', () => {
@@ -87,16 +108,7 @@
   });
 
   document.getElementById('setBtn').addEventListener('click', () => {
-    const volts = document.getElementById('setVoltage').value;
-    fetch(`/api/voltage/${volts}`, { method: 'POST' })
-      .then(async r => {
-        const d = await r.json();
-        if (!r.ok) {
-          alert(d.error);
-          return;
-        }
-        document.getElementById('currentVoltage').textContent = `${d.volts.toFixed(2)} V`;
-      });
+    post(`/api/voltage/${document.getElementById('setVoltage').value}`);
   });
 </script>
 </body>
